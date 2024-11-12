@@ -1,0 +1,17 @@
+ # Ignorar arquivos de teste
+**/*.test.ts
+**/*.test.tsx
+**/tests/**/*
+
+# Ignorar arquivos de definição de tipos
+**/*.d.ts
+
+# Ignorar arquivos de configuração
+*.config.js
+*.setup.js
+
+# Ignorar diretórios
+node_modules/
+.next/
+out/
+public/
