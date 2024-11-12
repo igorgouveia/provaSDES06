@@ -1,10 +1,10 @@
 import NextAuth from "next-auth"
-import { type NextAuthOptions } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 import bcrypt from "bcryptjs"
 import { prisma } from "@/lib/prisma"
+import { User } from "next-auth"
 
-export const authOptions: NextAuthOptions = {
+const handler = NextAuth({
   providers: [
     CredentialsProvider({
       name: "credentials",
@@ -12,7 +12,7 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Senha", type: "password" }
       },
-      async authorize(credentials) {
+      async authorize(credentials): Promise<User | null> {
         if (!credentials?.email || !credentials?.password) {
           throw new Error("Credenciais inválidas")
         }
@@ -36,7 +36,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.name,
           role: user.role,
-          moradorId: user.moradorId
+          moradorId: user.moradorId || undefined
         }
       }
     })
@@ -67,7 +67,6 @@ export const authOptions: NextAuthOptions = {
       return session
     }
   }
-}
+})
 
-const handler = NextAuth(authOptions)
 export { handler as GET, handler as POST }
