@@ -12,7 +12,6 @@ describe('Fluxos E2E', () => {
 
   const limparBancoDeDados = async () => {
     try {
-      // Limpar na ordem correta para evitar erros de chave estrangeira
       await prisma.transacao.deleteMany()
       await prisma.despesa.deleteMany()
       await prisma.itemCompra.deleteMany()
@@ -30,7 +29,6 @@ describe('Fluxos E2E', () => {
   }
 
   beforeAll(async () => {
-    // Configurar o Firefox
     const options = new firefox.Options()
       .addArguments('--headless')
       .addArguments('--width=1920')
@@ -42,28 +40,17 @@ describe('Fluxos E2E', () => {
       .build()
 
     await driver.manage().setTimeouts({ implicit: 10000 })
-
-    // Limpar banco de dados antes de todos os testes
-    await limparBancoDeDados()
-  })
-
-  beforeEach(async () => {
-    // Limpar banco de dados antes de cada teste
     await limparBancoDeDados()
 
     // Criar república e fazer login inicial
     await criarRepublica(driver)
-  })
-
-  afterEach(async () => {
-    // Limpar banco de dados após cada teste
-    await limparBancoDeDados()
+    await fazerLogin(driver)
+    await driver.wait(until.urlContains('/dashboard'), config.defaultTimeout)
+    console.log('Setup inicial concluído')
   })
 
   afterAll(async () => {
-    // Limpar banco de dados após todos os testes
     await limparBancoDeDados()
-
     if (driver) {
       await driver.quit()
     }
@@ -71,16 +58,18 @@ describe('Fluxos E2E', () => {
 
   it('deve criar um novo morador', async () => {
     try {
-      await fazerLogin(driver)
-
       // Ir para página de moradores
-      const moradoresLink = await driver.findElement(By.css('a[href="/moradores"]'))
-      await moradoresLink.click()
+      await driver.get(`${config.baseUrl}/moradores`)
       await waitForURL(driver, '/moradores')
+      await driver.sleep(1000) // Aguardar carregamento da página
 
       // Clicar em Novo Morador
-      const novoMoradorButton = await driver.findElement(By.xpath('//button[text()="Novo Morador"]'))
+      const novoMoradorButton = await driver.wait(
+        until.elementLocated(By.xpath('//button[text()="Novo Morador"]')),
+        10000
+      )
       await novoMoradorButton.click()
+      await driver.sleep(1000) // Aguardar modal abrir
 
       // Preencher formulário
       await fillForm(driver, {
@@ -98,9 +87,12 @@ describe('Fluxos E2E', () => {
       const cadastrarButton = await driver.findElement(By.xpath('//button[text()="Cadastrar Morador"]'))
       await cadastrarButton.click()
 
-      // Aguardar modal fechar
+      // Aguardar o modal fechar verificando se o botão não está mais visível
       await driver.wait(
-        until.stalenessOf(cadastrarButton),
+        async () => {
+          const buttons = await driver.findElements(By.xpath('//button[text()="Cadastrar Morador"]'))
+          return buttons.length === 0
+        },
         10000,
         'Modal não fechou após cadastro'
       )
@@ -117,34 +109,55 @@ describe('Fluxos E2E', () => {
 
   it('deve criar uma transação', async () => {
     try {
-      await fazerLogin(driver)
-
       // Ir para página de transações
-      const transacoesLink = await driver.findElement(By.css('a[href="/transacoes"]'))
-      await transacoesLink.click()
+      await driver.get(`${config.baseUrl}/transacoes`)
       await waitForURL(driver, '/transacoes')
+      await driver.sleep(1000) // Aguardar carregamento da página
 
       // Clicar em Nova Transação
-      const novaTransacaoButton = await driver.findElement(By.xpath('//button[text()="Nova Transação"]'))
+      const novaTransacaoButton = await driver.wait(
+        until.elementLocated(By.xpath('//button[text()="Nova Transação"]')),
+        10000
+      )
       await novaTransacaoButton.click()
+      await driver.sleep(1000) // Aguardar modal abrir
 
       // Preencher formulário
       const hoje = new Date().toISOString().split('T')[0]
       await fillForm(driver, {
-        pagadorId: '1', // Primeiro morador da lista
-        recebedorId: '2', // Segundo morador da lista
         valor: '50',
         data: hoje,
         descricao: 'Teste de transação'
       })
 
+      // Selecionar pagador (primeiro morador)
+      const selectPagador = await driver.findElement(By.name('pagadorId'))
+      await selectPagador.click()
+      await driver.sleep(500)
+      const opcoesPagador = await driver.findElements(By.css('select[name="pagadorId"] option'))
+      if (opcoesPagador.length > 1) {
+        await opcoesPagador[1].click() // Seleciona a primeira opção não vazia
+      }
+
+      // Selecionar recebedor (segundo morador)
+      const selectRecebedor = await driver.findElement(By.name('recebedorId'))
+      await selectRecebedor.click()
+      await driver.sleep(500)
+      const opcoesRecebedor = await driver.findElements(By.css('select[name="recebedorId"] option'))
+      if (opcoesRecebedor.length > 2) {
+        await opcoesRecebedor[2].click() // Seleciona a segunda opção não vazia
+      }
+
       // Enviar formulário
       const cadastrarButton = await driver.findElement(By.xpath('//button[text()="Cadastrar Transação"]'))
       await cadastrarButton.click()
 
-      // Aguardar modal fechar
+      // Aguardar o modal fechar
       await driver.wait(
-        until.stalenessOf(cadastrarButton),
+        async () => {
+          const buttons = await driver.findElements(By.xpath('//button[text()="Cadastrar Transação"]'))
+          return buttons.length === 0
+        },
         10000,
         'Modal não fechou após cadastro'
       )
@@ -161,16 +174,18 @@ describe('Fluxos E2E', () => {
 
   it('deve criar um item de compra', async () => {
     try {
-      await fazerLogin(driver)
-
       // Ir para página de compras
-      const comprasLink = await driver.findElement(By.css('a[href="/compras"]'))
-      await comprasLink.click()
+      await driver.get(`${config.baseUrl}/compras`)
       await waitForURL(driver, '/compras')
+      await driver.sleep(1000) // Aguardar carregamento da página
 
       // Clicar em Novo Item
-      const novoItemButton = await driver.findElement(By.xpath('//button[text()="Novo Item"]'))
+      const novoItemButton = await driver.wait(
+        until.elementLocated(By.xpath('//button[contains(text(), "Novo Item")]')),
+        10000
+      )
       await novoItemButton.click()
+      await driver.sleep(1000) // Aguardar modal abrir
 
       // Preencher formulário
       await fillForm(driver, {
@@ -185,9 +200,12 @@ describe('Fluxos E2E', () => {
       const cadastrarButton = await driver.findElement(By.xpath('//button[text()="Adicionar Item"]'))
       await cadastrarButton.click()
 
-      // Aguardar modal fechar
+      // Aguardar o modal fechar
       await driver.wait(
-        until.stalenessOf(cadastrarButton),
+        async () => {
+          const buttons = await driver.findElements(By.xpath('//button[text()="Adicionar Item"]'))
+          return buttons.length === 0
+        },
         10000,
         'Modal não fechou após cadastro'
       )
