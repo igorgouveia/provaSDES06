@@ -17,29 +17,37 @@ import {
   FormErrorMessage
 } from '@chakra-ui/react'
 import NextLink from 'next/link'
-import { z } from 'zod'
-import { useFormValidation } from '@/hooks/useFormValidation'
-import { Form, FormField } from '@/components/shared/Form'
-
-const registerSchema = z.object({
-  name: z.string().min(3, 'Nome deve ter no mínimo 3 caracteres'),
-  email: z.string().email('Email inválido'),
-  password: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres'),
-  confirmPassword: z.string()
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "As senhas não coincidem",
-  path: ["confirmPassword"],
-})
 
 export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false)
+  const [errors, setErrors] = useState<Record<string, string>>({})
   const router = useRouter()
   const toast = useToast()
-  const { errors, validate } = useFormValidation(registerSchema)
+
+  const validateForm = (data: any) => {
+    const newErrors: Record<string, string> = {}
+    
+    if (!data.name || data.name.length < 3) {
+      newErrors.name = 'Nome deve ter no mínimo 3 caracteres'
+    }
+    if (!data.email || !data.email.includes('@')) {
+      newErrors.email = 'Email inválido'
+    }
+    if (!data.password || data.password.length < 6) {
+      newErrors.password = 'Senha deve ter no mínimo 6 caracteres'
+    }
+    if (data.password !== data.confirmPassword) {
+      newErrors.confirmPassword = 'As senhas não coincidem'
+    }
+
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setIsLoading(true)
+    setErrors({})
 
     try {
       const formData = new FormData(e.currentTarget)
@@ -50,7 +58,7 @@ export default function RegisterPage() {
         confirmPassword: formData.get('confirmPassword') as string
       }
 
-      if (!validate(data)) {
+      if (!validateForm(data)) {
         setIsLoading(false)
         return
       }
@@ -60,16 +68,13 @@ export default function RegisterPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          name: data.name,
-          email: data.email,
-          password: data.password
-        })
+        body: JSON.stringify(data)
       })
 
+      const result = await response.json()
+
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Erro ao criar conta')
+        throw new Error(result.message || 'Erro ao criar conta')
       }
 
       toast({
@@ -104,50 +109,58 @@ export default function RegisterPage() {
           <Text>Preencha os dados para se registrar</Text>
         </Stack>
 
-        <Form onSubmit={handleSubmit} isLoading={isLoading} submitLabel="Criar Conta">
-          <FormField
-            label="Nome"
-            name="name"
-            error={errors.name}
-            isRequired
-          >
-            <Input name="name" />
-          </FormField>
+        <Box
+          py={{ base: '0', sm: '8' }}
+          px={{ base: '4', sm: '10' }}
+          bg="white"
+          boxShadow="sm"
+          borderRadius="xl"
+        >
+          <form onSubmit={handleSubmit} noValidate>
+            <Stack spacing="6">
+              <FormControl isInvalid={!!errors.name} isRequired>
+                <FormLabel>Nome</FormLabel>
+                <Input name="name" />
+                <FormErrorMessage>{errors.name}</FormErrorMessage>
+              </FormControl>
 
-          <FormField
-            label="Email"
-            name="email"
-            error={errors.email}
-            isRequired
-          >
-            <Input name="email" type="email" />
-          </FormField>
+              <FormControl isInvalid={!!errors.email} isRequired>
+                <FormLabel>Email</FormLabel>
+                <Input name="email" type="email" />
+                <FormErrorMessage>{errors.email}</FormErrorMessage>
+              </FormControl>
 
-          <FormField
-            label="Senha"
-            name="password"
-            error={errors.password}
-            isRequired
-          >
-            <Input name="password" type="password" />
-          </FormField>
+              <FormControl isInvalid={!!errors.password} isRequired>
+                <FormLabel>Senha</FormLabel>
+                <Input name="password" type="password" />
+                <FormErrorMessage>{errors.password}</FormErrorMessage>
+              </FormControl>
 
-          <FormField
-            label="Confirmar Senha"
-            name="confirmPassword"
-            error={errors.confirmPassword}
-            isRequired
-          >
-            <Input name="confirmPassword" type="password" />
-          </FormField>
-        </Form>
+              <FormControl isInvalid={!!errors.confirmPassword} isRequired>
+                <FormLabel>Confirmar Senha</FormLabel>
+                <Input name="confirmPassword" type="password" />
+                <FormErrorMessage>{errors.confirmPassword}</FormErrorMessage>
+              </FormControl>
 
-        <Text textAlign="center">
-          Já tem uma conta?{' '}
-          <Link as={NextLink} href="/login" color="blue.500">
-            Faça login
-          </Link>
-        </Text>
+              <Button
+                type="submit"
+                colorScheme="blue"
+                size="lg"
+                fontSize="md"
+                isLoading={isLoading}
+              >
+                Criar Conta
+              </Button>
+
+              <Text textAlign="center">
+                Já tem uma conta?{' '}
+                <Link as={NextLink} href="/login" color="blue.500">
+                  Faça login
+                </Link>
+              </Text>
+            </Stack>
+          </form>
+        </Box>
       </Stack>
     </Container>
   )

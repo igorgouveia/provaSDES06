@@ -15,14 +15,18 @@ import {
   chakra,
   shouldForwardProp
 } from '@chakra-ui/react'
-import { motion, isValidMotionProp } from 'framer-motion'
+import { motion, isValidMotionProp, HTMLMotionProps } from 'framer-motion'
 import { FiHome, FiDollarSign, FiUsers, FiCheckCircle, FiArrowRight } from 'react-icons/fi'
 import NextLink from 'next/link'
 
-// Componente com animação
+// Definir tipo para o ChakraBox
+type Merge<P, T> = Omit<P, keyof T> & T;
+type MotionBoxProps = Merge<HTMLMotionProps<"div">, any>;
+
+// Componente com animação corrigido
 const ChakraBox = chakra(motion.div, {
   shouldForwardProp: (prop) => isValidMotionProp(prop) || shouldForwardProp(prop),
-})
+}) as React.FC<MotionBoxProps>
 
 const features = [
   {
@@ -67,7 +71,7 @@ export default function HomePage() {
             <ChakraBox
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
+              transition={{ duration: 0.5 } as any}
             >
               <Heading
                 size="3xl"
@@ -94,7 +98,7 @@ export default function HomePage() {
             <ChakraBox
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
+              transition={{ duration: 0.5, delay: 0.2 } as any}
             >
               <Stack
                 direction={{ base: 'column', sm: 'row' }}
