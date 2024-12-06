@@ -1,73 +1,149 @@
 'use client'
 
-import { useState } from 'react'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
 import {
-  Box,
-  Button,
+  VStack,
   FormControl,
   FormLabel,
   Input,
-  Select,
-  Stack,
+  Button,
   useToast,
-  FormErrorMessage
+  Select,
+  FormHelperText,
+  Checkbox
 } from '@chakra-ui/react'
-import { moradorSchema, type MoradorData } from '@/lib/validations/morador'
+import { useState, useEffect } from 'react'
+
+type Quarto = {
+  id: string
+  nome: string
+}
+
+type Morador = {
+  id: string
+  nome: string
+  apelido: string
+  cpf: string
+  dataNascimento: string
+  quarto: string
+  chavePix?: string
+  banco?: string
+  ativo?: boolean
+  email?: string
+}
 
 type MoradorFormProps = {
-  onSuccess?: () => void
+  morador?: Morador | null
+  onSuccess: () => void
 }
 
-type MoradorFormData = Omit<MoradorData, 'dataNascimento'> & {
-  dataNascimento: string
-}
-
-export function MoradorForm({ onSuccess }: MoradorFormProps) {
+export function MoradorForm({ morador, onSuccess }: MoradorFormProps) {
   const [isLoading, setIsLoading] = useState(false)
-  const toast = useToast()
-  
-  const { register, handleSubmit, formState: { errors } } = useForm<MoradorFormData>({
-    resolver: zodResolver(moradorSchema.transform((data) => ({
-      ...data,
-      dataNascimento: data.dataNascimento instanceof Date 
-        ? data.dataNascimento 
-        : new Date(data.dataNascimento)
-    })))
+  const [quartos, setQuartos] = useState<Quarto[]>([])
+  const [enviarConvite, setEnviarConvite] = useState(true)
+  const [formData, setFormData] = useState({
+    nome: '',
+    apelido: '',
+    cpf: '',
+    dataNascimento: '',
+    quartoId: '',
+    chavePix: '',
+    banco: '',
+    ativo: true,
+    email: ''
   })
+  const toast = useToast()
 
-  const onSubmit = async (formData: MoradorFormData) => {
-    try {
-      setIsLoading(true)
-      
-      // Converter a string de data para objeto Date
-      const data: MoradorData = {
-        ...formData,
-        dataNascimento: new Date(formData.dataNascimento),
-        pesoContas: Number(formData.pesoContas)
+  useEffect(() => {
+    if (morador) {
+      setFormData({
+        nome: morador.nome,
+        apelido: morador.apelido || '',
+        cpf: morador.cpf || '',
+        dataNascimento: morador.dataNascimento || '',
+        quartoId: morador.quarto,
+        chavePix: morador.chavePix || '',
+        banco: morador.banco || '',
+        ativo: morador.ativo !== false,
+        email: morador.email || ''
+      })
+      setEnviarConvite(false)
+    }
+  }, [morador])
+
+  useEffect(() => {
+    const fetchQuartos = async () => {
+      try {
+        const response = await fetch('/api/republica/quartos')
+        if (!response.ok) throw new Error('Erro ao buscar quartos')
+        const data = await response.json()
+        setQuartos(data)
+      } catch (error) {
+        console.error(error)
+        toast({
+          title: 'Erro ao buscar quartos',
+          status: 'error'
+        })
       }
+    }
 
-      const response = await fetch('/api/moradores', {
-        method: 'POST',
+    fetchQuartos()
+  }, [toast])
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'number' ? Number(value) : value
+    }))
+  }
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    setIsLoading(true)
+
+    try {
+      // Criar/atualizar morador
+      const url = morador 
+        ? `/api/republica/moradores/${morador.id}`
+        : '/api/republica/moradores'
+      
+      const method = morador ? 'PUT' : 'POST'
+
+      const response = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
+        body: JSON.stringify(formData)
       })
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.message || 'Erro ao cadastrar morador')
+        throw new Error(error.message || `Erro ao ${morador ? 'atualizar' : 'criar'} morador`)
+      }
+
+      // Se for novo morador e tiver email, enviar convite
+      if (!morador && formData.email && enviarConvite) {
+        const conviteResponse = await fetch('/api/republica/convite', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: formData.email })
+        })
+
+        if (!conviteResponse.ok) {
+          const error = await conviteResponse.json()
+          throw new Error(error.message || 'Erro ao enviar convite')
+        }
       }
 
       toast({
-        title: 'Morador cadastrado com sucesso!',
+        title: `Morador ${morador ? 'atualizado' : 'adicionado'} com sucesso!`,
         status: 'success'
       })
 
-      onSuccess?.()
+      onSuccess()
     } catch (error) {
       toast({
-        title: error instanceof Error ? error.message : 'Erro ao cadastrar morador',
+        title: `Erro ao ${morador ? 'atualizar' : 'adicionar'} morador`,
+        description: error instanceof Error ? error.message : 'Tente novamente',
         status: 'error'
       })
     } finally {
@@ -76,78 +152,112 @@ export function MoradorForm({ onSuccess }: MoradorFormProps) {
   }
 
   return (
-    <Box as="form" onSubmit={handleSubmit(onSubmit)}>
-      <Stack spacing={4}>
-        <FormControl isInvalid={!!errors.nome}>
+    <form onSubmit={handleSubmit}>
+      <VStack spacing={4}>
+        <FormControl isRequired>
           <FormLabel>Nome</FormLabel>
-          <Input {...register('nome')} />
-          <FormErrorMessage>{errors.nome?.message}</FormErrorMessage>
+          <Input 
+            name="nome" 
+            value={formData.nome}
+            onChange={handleChange}
+          />
         </FormControl>
 
-        <FormControl isInvalid={!!errors.apelido}>
+        <FormControl>
+          <FormLabel>Email</FormLabel>
+          <Input 
+            name="email" 
+            type="email"
+            value={formData.email}
+            onChange={handleChange}
+          />
+          <FormHelperText>
+            O email será usado para enviar o convite de acesso ao sistema
+          </FormHelperText>
+        </FormControl>
+
+        {!morador && formData.email && (
+          <FormControl>
+            <Checkbox
+              isChecked={enviarConvite}
+              onChange={(e) => setEnviarConvite(e.target.checked)}
+            >
+              Enviar convite por email
+            </Checkbox>
+          </FormControl>
+        )}
+
+        <FormControl>
           <FormLabel>Apelido</FormLabel>
-          <Input {...register('apelido')} />
-          <FormErrorMessage>{errors.apelido?.message}</FormErrorMessage>
+          <Input 
+            name="apelido" 
+            value={formData.apelido}
+            onChange={handleChange}
+          />
         </FormControl>
 
-        <FormControl isInvalid={!!errors.cpf}>
+        <FormControl>
           <FormLabel>CPF</FormLabel>
-          <Input {...register('cpf')} placeholder="000.000.000-00" />
-          <FormErrorMessage>{errors.cpf?.message}</FormErrorMessage>
+          <Input 
+            name="cpf" 
+            value={formData.cpf}
+            onChange={handleChange}
+          />
         </FormControl>
 
-        <FormControl isInvalid={!!errors.dataNascimento}>
+        <FormControl>
           <FormLabel>Data de Nascimento</FormLabel>
           <Input 
-            {...register('dataNascimento')} 
+            name="dataNascimento" 
             type="date"
+            value={formData.dataNascimento}
+            onChange={handleChange}
           />
-          <FormErrorMessage>{errors.dataNascimento?.message}</FormErrorMessage>
         </FormControl>
 
-        <FormControl isInvalid={!!errors.quarto}>
+        <FormControl isRequired>
           <FormLabel>Quarto</FormLabel>
-          <Select {...register('quarto')}>
-            <option value="">Selecione um quarto</option>
-            <option value="Fundo">Fundo</option>
-            <option value="Duplo Suíte">Duplo Suíte</option>
-            <option value="Triplo Suíte 1">Triplo Suíte 1</option>
-            <option value="Triplo Suíte 2">Triplo Suíte 2</option>
-            <option value="Triplo Simples 1">Triplo Simples 1</option>
-            <option value="Triplo Simples 2">Triplo Simples 2</option>
+          <Select 
+            name="quartoId" 
+            value={formData.quartoId}
+            onChange={handleChange}
+            placeholder="Selecione um quarto"
+          >
+            {quartos.map(quarto => (
+              <option key={quarto.id} value={quarto.id}>
+                {quarto.nome}
+              </option>
+            ))}
           </Select>
-          <FormErrorMessage>{errors.quarto?.message}</FormErrorMessage>
         </FormControl>
 
         <FormControl>
           <FormLabel>Chave Pix</FormLabel>
-          <Input {...register('chavePix')} />
+          <Input 
+            name="chavePix" 
+            value={formData.chavePix}
+            onChange={handleChange}
+          />
         </FormControl>
 
         <FormControl>
           <FormLabel>Banco</FormLabel>
-          <Input {...register('banco')} />
-        </FormControl>
-
-        <FormControl isInvalid={!!errors.pesoContas}>
-          <FormLabel>Peso nas Contas</FormLabel>
-          <Input
-            {...register('pesoContas')}
-            type="number"
-            step="0.1"
-            defaultValue="1"
+          <Input 
+            name="banco" 
+            value={formData.banco}
+            onChange={handleChange}
           />
-          <FormErrorMessage>{errors.pesoContas?.message}</FormErrorMessage>
         </FormControl>
 
         <Button
           type="submit"
           colorScheme="blue"
           isLoading={isLoading}
+          width="full"
         >
-          Cadastrar Morador
+          {morador ? 'Atualizar' : 'Adicionar'} Morador
         </Button>
-      </Stack>
-    </Box>
+      </VStack>
+    </form>
   )
 } 

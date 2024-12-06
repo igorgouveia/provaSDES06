@@ -1,10 +1,11 @@
-generator client {
-  provider = "prisma-client-js"
-}
-
 datasource db {
   provider = "mongodb"
   url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["mongoDb"]
 }
 
 model Account {
@@ -38,112 +39,155 @@ model Session {
 }
 
 model User {
-  id              String    @id @default(auto()) @map("_id") @db.ObjectId
-  name            String?
-  email           String?   @unique
-  emailVerified   DateTime?
-  password        String?
-  image           String?
-  role            String    @default("MORADOR")
-  moradorId       String?   @unique @db.ObjectId
-  republicaId     String?   @db.ObjectId
-  resetToken      String?
+  id               String          @id @default(auto()) @map("_id") @db.ObjectId
+  name             String?
+  email            String?         @unique
+  emailVerified    DateTime?
+  password         String?
+  image            String?
+  role             String          @default("MORADOR")
+  moradorId        String?         @unique @db.ObjectId
+  republicaId      String?         @db.ObjectId
+  resetToken       String?
   resetTokenExpiry DateTime?
-  accounts        Account[]
-  sessions        Session[]
-  morador         Morador?  @relation(fields: [moradorId], references: [id])
-  republica       Republica? @relation(fields: [republicaId], references: [id])
+  peso             Float           @default(1)
+  accounts         Account[]
+  sessions         Session[]
+  morador          Morador?        @relation(fields: [moradorId], references: [id])
+  republica        Republica?      @relation(fields: [republicaId], references: [id])
+  cobrancas        Cobranca[]
+  pesosContaFixa   PesoContaFixa[]
 
   @@map("users")
 }
 
-model VerificationToken {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  identifier String
-  token      String   @unique
-  expires    DateTime
+model Morador {
+  id               String                @id @default(auto()) @map("_id") @db.ObjectId
+  nome             String
+  apelido          String?
+  email            String? // Tornando email opcional para lidar com dados existentes
+  cpf              String?
+  dataNascimento   DateTime?
+  chavePix         String?
+  banco            String?
+  users            User[]
+  republica        Republica             @relation(fields: [republicaId], references: [id])
+  republicaId      String                @db.ObjectId
+  quarto           Quarto?               @relation(fields: [quartoId], references: [id])
+  quartoId         String?               @db.ObjectId
+  ativo            Boolean               @default(true)
+  despesas         Despesa[]             @relation("ResponsavelDespesa")
+  participacoes    DespesaParticipante[]
+  pagamentos       Transacao[]           @relation("Pagador")
+  recebimentos     Transacao[]           @relation("Recebedor")
+  itensAdicionados ItemCompra[]          @relation("AdicionadoPor")
 
-  @@unique([identifier, token])
-  @@map("verification_tokens")
+  @@map("moradores")
 }
 
 model Republica {
-  id          String    @id @default(auto()) @map("_id") @db.ObjectId
-  nome        String
-  endereco    String
-  descricao   String?
-  adminId     String    @unique @db.ObjectId
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  users       User[]
-  convites    Convite[]
+  id            String          @id @default(auto()) @map("_id") @db.ObjectId
+  nome          String
+  endereco      String
+  descricao     String?
+  moradores     Morador[]
+  users         User[]
+  quartos       Quarto[]
+  metragemTotal Float?
+  valorAluguel  Float?
+  fechamentos   FechamentoMes[]
+  despesas      Despesa[]
+  cobrancas     Cobranca[]
+  convites      Convite[]
+  contasFixas   ContaFixa[]
 
   @@map("republicas")
+}
+
+model FechamentoMes {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  mes            String
+  republicaId    String    @db.ObjectId
+  republica      Republica @relation(fields: [republicaId], references: [id])
+  status         String    @default("nao_usado") // valores: "nao_usado", "aberto" ou "fechado"
+  dataFechamento DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([mes, republicaId])
+  @@map("fechamentos_mes")
+}
+
+model Quarto {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  nome        String
+  metragem    Float
+  valor       Float
+  numMoradores Int      @default(1)
+  descricao   String?
+  moradores   Morador[]
+  republicaId String    @db.ObjectId
+  republica   Republica @relation(fields: [republicaId], references: [id])
+
+  @@map("quartos")
 }
 
 model Convite {
   id          String    @id @default(auto()) @map("_id") @db.ObjectId
   email       String
-  token       String    @unique
-  expiresAt   DateTime
   republicaId String    @db.ObjectId
   republica   Republica @relation(fields: [republicaId], references: [id])
   status      String    @default("PENDENTE")
+  token       String    @unique
   createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@map("convites")
 }
 
-model Morador {
-  id               String     @id @default(auto()) @map("_id") @db.ObjectId
-  nome             String
-  apelido          String
-  cpf              String     @unique
-  dataNascimento   DateTime
-  quarto           String
-  chavePix         String?
-  banco            String?
-  pesoContas       Float      @default(1)
-  user             User?
-  despesas         Despesa[]  @relation("ResponsavelDespesa")
-  pagamentos       Transacao[]      @relation("Pagador")
-  recebimentos     Transacao[]      @relation("Recebedor")
-  itensAdicionados ItemCompra[]     @relation("AdicionadoPor")
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
-
-  @@map("moradores")
-}
-
 model Despesa {
-  id            String   @id @default(auto()) @map("_id") @db.ObjectId
-  tipo          String
-  valor         Float
-  data          DateTime
-  responsavel   Morador  @relation("ResponsavelDespesa", fields: [responsavelId], references: [id])
-  responsavelId String   @db.ObjectId
-  descricao     String?
-  comprovante   String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                String                @id @default(auto()) @map("_id") @db.ObjectId
+  tipo              String
+  valor             Float
+  data              DateTime
+  responsavel       Morador               @relation("ResponsavelDespesa", fields: [responsavelId], references: [id])
+  responsavelId     String                @db.ObjectId
+  descricao         String?
+  participantes     DespesaParticipante[]
+  tipoRateio        String                @default("REPUBLICA")
+  incluiResponsavel Boolean               @default(true)
+  mesReferencia     String // YYYY-MM
+  republica         Republica             @relation(fields: [republicaId], references: [id])
+  republicaId       String                @db.ObjectId
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
 
   @@map("despesas")
 }
 
+model DespesaParticipante {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  despesa   Despesa @relation(fields: [despesaId], references: [id])
+  despesaId String  @db.ObjectId
+  morador   Morador @relation(fields: [moradorId], references: [id])
+  moradorId String  @db.ObjectId
+
+  @@map("despesas_participantes")
+}
+
 model Transacao {
-  id                 String   @id @default(auto()) @map("_id") @db.ObjectId
-  pagador           Morador  @relation("Pagador", fields: [pagadorId], references: [id])
-  pagadorId         String   @db.ObjectId
-  recebedor         Morador  @relation("Recebedor", fields: [recebedorId], references: [id])
-  recebedorId       String   @db.ObjectId
-  valor             Float
-  data              DateTime
-  descricao         String?
-  status            String   @default("ATIVA")
-  canceladoPor      String?  @db.ObjectId
-  motivoCancelamento String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  pagador         Morador   @relation("Pagador", fields: [pagadorId], references: [id])
+  pagadorId       String    @db.ObjectId
+  recebedor       Morador   @relation("Recebedor", fields: [recebedorId], references: [id])
+  recebedorId     String    @db.ObjectId
+  valor           Float
+  data            DateTime
+  status          String    @default("PENDENTE")
+  comprovante     String?
+  dataConfirmacao DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@map("transacoes")
 }
@@ -152,9 +196,8 @@ model ItemCompra {
   id            String   @id @default(auto()) @map("_id") @db.ObjectId
   nome          String
   quantidade    Int
-  unidadeMedida String?
-  urgencia      String   @default("BAIXA")
-  observacoes   String?
+  valor         Float    @default(0)
+  observacao    String?
   status        String   @default("PENDENTE")
   adicionadoPor Morador  @relation("AdicionadoPor", fields: [moradorId], references: [id])
   moradorId     String   @db.ObjectId
@@ -162,4 +205,61 @@ model ItemCompra {
   updatedAt     DateTime @updatedAt
 
   @@map("itens_compra")
-} 
+}
+
+model Cobranca {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  valor       Float
+  mes         String
+  status      String    @default("PENDENTE")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  morador     User      @relation(fields: [moradorId], references: [id])
+  moradorId   String    @db.ObjectId
+  republica   Republica @relation(fields: [republicaId], references: [id])
+  republicaId String    @db.ObjectId
+
+  @@map("cobrancas")
+}
+
+model ContaFixa {
+  id          String          @id @default(auto()) @map("_id") @db.ObjectId
+  nome        String
+  valor       Float           @default(0)
+  vencimento  Int
+  descricao   String?
+  republica   Republica       @relation(fields: [republicaId], references: [id])
+  republicaId String          @db.ObjectId
+  pesos       PesoContaFixa[]
+  valores     ValorMensal[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@map("contas_fixas")
+}
+
+model ValorMensal {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  valor       Float
+  mes         String
+  contaFixa   ContaFixa @relation(fields: [contaFixaId], references: [id])
+  contaFixaId String    @db.ObjectId
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([contaFixaId, mes])
+  @@map("valores_mensais")
+}
+
+model PesoContaFixa {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  peso        Float     @default(1)
+  morador     User      @relation(fields: [moradorId], references: [id])
+  moradorId   String    @db.ObjectId
+  contaFixa   ContaFixa @relation(fields: [contaFixaId], references: [id])
+  contaFixaId String    @db.ObjectId
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("pesos_contas_fixas")
+}

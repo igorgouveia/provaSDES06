@@ -12,12 +12,9 @@ import {
   StatHelpText,
   Card,
   CardBody,
-  Button,
-  useDisclosure,
   VStack,
 } from '@chakra-ui/react'
 import { useApp } from '@/contexts/AppContext'
-import { ConviteMorador } from './components/ConviteMorador'
 import { DespesaChart } from '../despesas/components/DespesaChart'
 import { useSession } from 'next-auth/react'
 
@@ -47,7 +44,6 @@ export default function DashboardPage() {
       <VStack spacing={8} align="stretch">
         <Box display="flex" justifyContent="space-between" alignItems="center">
           <Heading size="lg">Dashboard</Heading>
-          {isAdmin && <ConviteMorador />}
         </Box>
 
         <Grid templateColumns="repeat(3, 1fr)" gap={6}>

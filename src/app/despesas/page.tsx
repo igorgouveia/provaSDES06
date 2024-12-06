@@ -14,6 +14,7 @@ import {
   ModalBody,
   ModalCloseButton,
   VStack,
+  useToast,
 } from '@chakra-ui/react'
 import { DespesaForm } from './components/DespesaForm'
 import { DespesaLista } from './components/DespesaLista'
@@ -26,6 +27,8 @@ export default function DespesasPage() {
   const { isOpen, onOpen, onClose } = useDisclosure()
   const { state, refreshDespesas, refreshMoradores } = useApp()
   const exportToCSV = useExportToCSV()
+  const [selectedDespesa, setSelectedDespesa] = useState<any>(null)
+  const toast = useToast()
 
   useEffect(() => {
     refreshMoradores()
@@ -48,20 +51,31 @@ export default function DespesasPage() {
     if (filtros.dataInicial) params.append('dataInicial', filtros.dataInicial)
     if (filtros.dataFinal) params.append('dataFinal', filtros.dataFinal)
 
-    const response = await fetch(`/api/despesas?${params}`)
+    const response = await fetch(`/api/republica/despesas?${params}`)
     const data = await response.json()
-    // Atualizar o estado com as despesas filtradas
     if (Array.isArray(data)) {
       // Use o dispatch aqui para atualizar o estado
       // dispatch({ type: 'SET_DESPESAS', payload: data })
     }
   }
 
+  const handleEdit = (despesa: any) => {
+    setSelectedDespesa(despesa)
+    onOpen()
+  }
+
+  const handleDelete = async () => {
+    await refreshDespesas()
+  }
+
   return (
     <Container maxW="container.xl" py={8}>
       <Box mb={8} display="flex" justifyContent="space-between" alignItems="center">
         <Heading size="lg">Despesas</Heading>
-        <Button colorScheme="blue" onClick={onOpen}>
+        <Button colorScheme="blue" onClick={() => {
+          setSelectedDespesa(null)
+          onOpen()
+        }}>
           Nova Despesa
         </Button>
       </Box>
@@ -74,6 +88,8 @@ export default function DespesasPage() {
             <DespesaLista
               despesas={state.despesas || []}
               totalGasto={totalGasto}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
             />
           </Box>
           <Box flex={1}>
@@ -89,13 +105,16 @@ export default function DespesasPage() {
       <Modal isOpen={isOpen} onClose={onClose} size="xl">
         <ModalOverlay />
         <ModalContent>
-          <ModalHeader>Nova Despesa</ModalHeader>
+          <ModalHeader>{selectedDespesa ? 'Editar Despesa' : 'Nova Despesa'}</ModalHeader>
           <ModalCloseButton />
           <ModalBody pb={6}>
-            <DespesaForm onSuccess={() => {
-              onClose()
-              refreshDespesas()
-            }} />
+            <DespesaForm 
+              despesa={selectedDespesa}
+              onSuccess={() => {
+                onClose()
+                refreshDespesas()
+              }} 
+            />
           </ModalBody>
         </ModalContent>
       </Modal>

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
-import crypto from 'crypto'
+import { v4 as uuidv4 } from 'uuid'
 import { sendEmail, getInviteEmail } from '@/lib/mail'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
@@ -49,22 +49,20 @@ export async function POST(request: Request) {
       )
     }
 
-    // Gerar token do convite
-    const token = crypto.randomBytes(32).toString('hex')
-    const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000) // 48 horas
+    // Gerar token do convite usando UUID
+    const token = uuidv4()
 
     // Criar convite
     const convite = await prisma.convite.create({
       data: {
         email,
         token,
-        expiresAt,
         republicaId: admin.republica.id
       }
     })
 
     // Enviar email
-    const inviteLink = `${process.env.NEXT_PUBLIC_APP_URL}/convite?token=${token}`
+    const inviteLink = `${process.env.NEXT_PUBLIC_APP_URL}/register/complete?token=${token}`
     const { subject, html } = getInviteEmail(inviteLink, admin.republica.nome)
     await sendEmail({
       to: email,

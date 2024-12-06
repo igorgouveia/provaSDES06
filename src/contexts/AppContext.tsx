@@ -64,15 +64,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const isAdmin = session?.user?.role === 'ADMIN'
 
   const refreshMoradores = useCallback(async () => {
-    const response = await fetch('/api/moradores')
-    const data = await response.json()
-    dispatch({ type: 'SET_MORADORES', payload: data })
+    try {
+      const response = await fetch('/api/republica/moradores')
+      if (!response.ok) throw new Error('Erro ao buscar moradores')
+      
+      const data = await response.json()
+      dispatch({ type: 'SET_MORADORES', payload: data })
+    } catch (error) {
+      console.error('Erro ao buscar moradores:', error)
+    }
   }, [])
 
   const refreshDespesas = useCallback(async () => {
-    const response = await fetch('/api/despesas')
-    const data = await response.json()
-    dispatch({ type: 'SET_DESPESAS', payload: data })
+    try {
+      const response = await fetch('/api/republica/despesas')
+      if (!response.ok) throw new Error('Erro ao buscar despesas')
+      
+      const data = await response.json()
+      dispatch({ type: 'SET_DESPESAS', payload: data })
+    } catch (error) {
+      console.error('Erro ao buscar despesas:', error)
+    }
   }, [])
 
   const refreshItensCompra = useCallback(async () => {
